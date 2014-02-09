@@ -22,7 +22,7 @@ const (
 
 var (
 	configuration ConfigurationInfo
-	quotes        map[string]yahoofinance.Quote
+	quotes        map[string][]yahoofinance.Quote
 )
 
 /*
@@ -130,6 +130,5 @@ func main() {
 		var r = yahoofinance.HistoricalPrices(symbol, startDate, endDate)
 		compute(r, periods, factor)
 		draw(symbol, r, 8, 4)
-		quotes[symbol] = r //Save ub global variable all quotes to post process and allow to generate investment advice
 	}
 }
