@@ -6,7 +6,7 @@ import (
 	"code.google.com/p/plotinum/plotter"
 	"code.google.com/p/plotinum/plotutil"
 	"fmt"
-	"github.com/aguardientico/yahoofinance"
+	"github.com/Aguardientico/yahoofinance"
 	"math"
 	"time"
 )
