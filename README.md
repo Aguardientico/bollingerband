@@ -15,6 +15,10 @@ then you should apply manually the patch and run:
 
 then you can just run
 `bollingerband`
-It should generate one pgn file for each symbol
+It should generate one pgn file for each symbol and should advice the best investment based on the following rules:
+1. Do not invest if price is under down band and prices tend to down, since it can mean that prices will keep the trend.
+2. If price is close to up band but tend to down then do not invest since the reboot effect.
+3. Invest if price is over top band and price tend to up, since it can mean that prices will keep the trend.
+4. If price is close to down band but tend to up then invest since the reboot effect.
 
 if you want to change symbols, periods or factor for bollinger band then you can change it in *config.json* file
