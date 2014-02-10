@@ -23,7 +23,15 @@ const (
 var (
 	configuration ConfigurationInfo
 	quotes        map[string][]yahoofinance.Quote
+	bestOption    selectionParameters = selectionParameters{symbol: "None"}
+  
 )
+
+// Used in analize function to try to choose the best investment option
+type selectionParameters struct {
+  symbol string
+  avg float64
+}
 
 /*
   dates function returns start and end dates to retreive quoute's info.
@@ -120,15 +128,121 @@ func draw(symbol string, quotes []yahoofinance.Quote, width, height float64) {
 	}
 }
 
+// Compares the last value against the 2 last to try to determine if tend is bottom
+func tendBottom(q []yahoofinance.Quote)bool {
+	l := len(q)
+	return q[l-1].Close < q[l-2].Close && q[l-1].Close < q[l-3].Close
+}
+
+// Compares the last three values to try to determine if price is under bottom band
+func priceUnderBottom(q []yahoofinance.Quote)bool {
+	l := len(q)
+	isBottom := true
+	for i := 3; i > 0; i-- {
+		isBottom = isBottom && q[l-i].Close <= q[l-i].Bottom 
+	}
+	return isBottom 
+}
+
+// Compare the last three values to try to determine if price is close(+/- 10%) to bottom band
+func closeToBottom(q []yahoofinance.Quote)bool {
+        l := len(q)
+        isClose := true
+        for i := 3; i > 0; i-- {
+                var tenPercent = q[l-i].Bottom * 10 / 100
+                var difference = math.Abs(q[l-i].Close - q[l-1].Bottom)
+                isClose = isClose && (tenPercent > difference)
+        }
+	return isClose
+}
+
+// Compares the last value against the 2 last to try to determine if tend is up
+func tendUp(q []yahoofinance.Quote)bool {
+	l := len(q)
+	return q[l-1].Close > q[l-2].Close && q[l-1].Close > q[l-3].Close
+}
+
+// Compares the last three values to try to determine if price is over top band
+func priceOverTop(q []yahoofinance.Quote)bool {
+        l := len(q)
+        isUp := true
+        for i := 3; i > 0; i-- {
+                isUp = isUp && q[l-i].Close >= q[l-i].Top
+        }
+        return isUp
+}
+
+// Compare the last three values to try to determine if price is close(+/- 10%) to top band
+func closeToTop(q []yahoofinance.Quote)bool {
+	l := len(q)
+	isClose := true
+	for i := 3; i > 0; i-- {
+		var tenPercent = q[l-i].Top * 10 / 100
+		var difference = math.Abs(q[l-i].Top - q[l-1].Close)
+		isClose = isClose && (tenPercent > difference)
+	}
+	return isClose
+}
+
+// Band size average for the last three values
+func bandSizeAvg(q []yahoofinance.Quote)float64 {
+	l := len(q)
+	sum := 0.0
+	for i := 3; i > 0; i-- {
+		sum += q[l-i].Top - q[l-i].Bottom
+	}
+	return sum/3.0
+}
+
+// Compare the best option with actual and assign the best between both
+func setBestOption(symbol string, q []yahoofinance.Quote) {
+	avg := bandSizeAvg(q)
+	if (bestOption.symbol == "None" || avg > bestOption.avg) {
+		bestOption = selectionParameters{symbol: symbol, avg: avg}
+	}
+}
+
+/*
+  analize try to determine what should be the best option to invest using the following rules:
+  1. Do not invest if price is under bottom band and prices tend to bottom, since it can mean that prices will keep the trend.
+  2. If price is close to up band but tend to bottom then do not invest since the reboot effect.
+  3. Invest if price is over top band and price tend to up, since it can mean that prices will keep the trend.
+  4. If price is close to bottom band but tend to up then invest since the reboot effect.
+*/
+func analize() {
+	fmt.Printf("Calculating which stock to invest given our current strategy.....\n")
+	for _, symbol := range configuration.Symbols {
+		dataset := quotes[symbol]
+		if (priceUnderBottom(dataset) && tendBottom(dataset)) { //The first rule is reached so we should not invest
+			break
+		}
+		if (priceOverTop(dataset) && tendUp(dataset)) { //The third rule is reached so is a good option invest
+			setBestOption(symbol, dataset)
+			break
+		}
+		if (closeToTop(dataset) && tendBottom(dataset)) { //The second rule is reached so we should not invest
+			break
+		}
+		if (closeToBottom(dataset) && tendUp(dataset)) { //The fourth rule is reached so is a good option invest
+			setBestOption(symbol, dataset)
+			break
+		}
+	}
+	fmt.Printf("You should invest in: %s\n", bestOption.symbol)
+}
+
 func main() {
 	configuration = Configuration()
 	periods := configuration.Periods
 	factor := configuration.Factor
 	startDate, endDate := dates(periods)
+	quotes = make(map[string][]yahoofinance.Quote)
 	for _, symbol := range configuration.Symbols {
 		fmt.Printf("Calculating Bollinger Band for %s\n", symbol)
 		var r = yahoofinance.HistoricalPrices(symbol, startDate, endDate)
 		compute(r, periods, factor)
 		draw(symbol, r, 8, 4)
+		quotes[symbol] = r
 	}
+	analize()
 }
